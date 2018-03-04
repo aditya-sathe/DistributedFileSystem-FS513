@@ -34,10 +34,11 @@ func addFileToFS(local_path string, sdfs_name string) {
 	if _, err := os.Stat(absPath); os.IsNotExist(err){
 		os.MkdirAll(absPath, os.ModePerm)
 	}
-	_, err := exec.Command("cp", local_path, absPath).Output()
+	cmdOut, err := exec.Command("cp", local_path, absPath).CombinedOutput()
 	//errorCheck(err)
 	if err != nil {
 		fmt.Println("Error while copying ", err)
+		fmt.Println(cmdOut)
 		return
 	}
 	if currHost != GATEWAY {
@@ -82,8 +83,16 @@ func sendAddFile(sdfs_name string) {
 
 func scpFile(ip_src string, ip_dest string, sdfs_name string) {
 	//infoCheck("scp" + " ddle2@" + IP_src.String() + ":/home/ddle2/CS425-MP3/files/" + sdfs_name + " ddle2@" + IP_dest.String() + ":/home/ddle2/CS425-MP3/files")
-	_, err := exec.Command("scp", "ec2-user@"+ip_src+":/home/ec2-user/fs513_files/"+sdfs_name, "ec2-user@"+ip_dest+":/home/ec2-user/fs513_files").Output()
+	// create remote dir
+	cmdOut, err := exec.Command("ssh", "ec2-user@"+ip_dest+" 'mkdir -p " + "/home/ec2-user/fs513_files'").CombinedOutput()
 	if err !=nil{
 		fmt.Println("Error ", err)
+		fmt.Println("Cmdout ", cmdOut)
+	}
+	
+	cmdOut, err = exec.Command("scp", "ec2-user@"+ip_src+":/home/ec2-user/fs513_files/"+sdfs_name, "ec2-user@"+ip_dest+":/home/ec2-user/fs513_files").CombinedOutput()
+	if err !=nil{
+		fmt.Println("Error ", err)
+		fmt.Println("Cmdout ", cmdOut)
 	}
 }

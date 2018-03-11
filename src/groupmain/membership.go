@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	GATEWAY        = "172.31.23.202" //Designated Gateway for the nodes to join
+	GATEWAY        = "172.31.26.66" //Designated Gateway for the nodes to join
 	MIN_GROUP_SIZE = 4
 	ACK_TIMEOUT    = time.Millisecond * 2500
 	SYN_TIMEOUT    = time.Second * 1

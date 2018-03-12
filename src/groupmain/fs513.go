@@ -1,7 +1,6 @@
 package main
 
 import (
-	"path/filepath"
 	"fmt"
 	"os/exec"
 	"time"
@@ -22,11 +21,11 @@ var local_files = make([]string, 0)
 
 func addFileToFS(local_path string, sdfs_name string) {
 		
-	absPath, _ := filepath.Abs(FS513_PATH)
+	//absPath, _ := filepath.Abs(FS513_PATH)
 	/*if _, err := os.Stat(absPath); os.IsNotExist(err){
 		os.MkdirAll(absPath, os.ModePerm)
 	}*/
-	sdfsPath :=  absPath + sdfs_name
+	sdfsPath :=  FS513_PATH + sdfs_name
 	cmdOut, err := exec.Command("cp", local_path, sdfsPath).CombinedOutput()
 	//errorCheck(err)
 	if err != nil {
@@ -35,7 +34,7 @@ func addFileToFS(local_path string, sdfs_name string) {
 		return
 	}
 	if currHost != GATEWAY {
-		makeReplicas(sdfsPath)
+		replicateFile(sdfsPath)
 		sendUpdGateway(sdfs_name)
 	} /*else {
 		//TODO What if file exists?
@@ -74,7 +73,7 @@ func sendUpdGateway(sdfs_name string) {
 	sendToHosts(msg, targetHosts)
 }
 
-func makeReplicas(path string){
+func replicateFile(path string){
 	ipDest1 := membershipGroup[(getIx()+1)%len(membershipGroup)].Host
 	ipDest2 := membershipGroup[(getIx()+2)%len(membershipGroup)].Host
 	

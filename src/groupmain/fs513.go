@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"fmt"
 	"os/exec"
@@ -13,8 +12,8 @@ const (
 )
 
 type file_info struct {
-	Name string
-	IP   string
+	Name  string
+	IPs   []string
 }
 
 var fs513_list = make(map[string]file_info)
@@ -24,10 +23,11 @@ var local_files = make([]string, 0)
 func addFileToFS(local_path string, sdfs_name string) {
 		
 	absPath, _ := filepath.Abs(FS513_PATH)
-	if _, err := os.Stat(absPath); os.IsNotExist(err){
+	/*if _, err := os.Stat(absPath); os.IsNotExist(err){
 		os.MkdirAll(absPath, os.ModePerm)
-	}
-	cmdOut, err := exec.Command("cp", local_path, absPath + sdfs_name).CombinedOutput()
+	}*/
+	sdfsPath :=  absPath + sdfs_name
+	cmdOut, err := exec.Command("cp", local_path, sdfsPath).CombinedOutput()
 	//errorCheck(err)
 	if err != nil {
 		fmt.Println("Error while copying ", err)
@@ -35,7 +35,8 @@ func addFileToFS(local_path string, sdfs_name string) {
 		return
 	}
 	if currHost != GATEWAY {
-		sendAddFile(sdfs_name)
+		makeReplicas(sdfsPath)
+		sendUpdGateway(sdfs_name)
 	} /*else {
 		//TODO What if file exists?
 		ip_dest1 := membershipList[(getIndex(currHost)+1)%len(membershipList)].Host
@@ -65,8 +66,7 @@ func addFileToFS(local_path string, sdfs_name string) {
 	//infoCheck("file " + sdfs_name + " added to "+ currHost)
 }
 
-/*Helper function for sending an 'addFile' message*/
-func sendAddFile(sdfs_name string) {
+func sendUpdGateway(sdfs_name string) {
 	msg := message{currHost, "AddFile", time.Now().Format(time.RFC850), sdfs_name}
 	var targetHosts = make([]string, 1)
 	targetHosts[0] = GATEWAY
@@ -74,13 +74,22 @@ func sendAddFile(sdfs_name string) {
 	sendToHosts(msg, targetHosts)
 }
 
-func scpFile(ip_src string, ip_dest string, sdfs_name string) {
-	//infoCheck("scp" + " ddle2@" + IP_src.String() + ":/home/ddle2/CS425-MP3/files/" + sdfs_name + " ddle2@" + IP_dest.String() + ":/home/ddle2/CS425-MP3/files")
-	cmdArgs := []string{}
-	cmdArgs = append(cmdArgs,"ec2-user@"+ip_src+":/home/ec2-user/fs513_files/"+sdfs_name)
-	cmdArgs = append(cmdArgs,"ec2-user@"+ip_dest+":/home/ec2-user/fs513_files")	
+func makeReplicas(path string){
+	ipDest1 := membershipGroup[(getIx()+1)%len(membershipGroup)].Host
+	ipDest2 := membershipGroup[(getIx()+2)%len(membershipGroup)].Host
 	
-	fmt.Println("cmdArgs", cmdArgs)
+	scpFile(path,ipDest1)
+	scpFile(path,ipDest2)
+}
+
+func scpFile(sdfsPath string, ip_dest string) {
+	// scp -i chet0804.pem.txt SAATHE ec2-user@ip-172-31-29-21:/home/ec2-user/
+	cmdArgs := []string{}
+	cmdArgs = append(cmdArgs, "-i chet0804.pem.txt")
+	cmdArgs = append(cmdArgs, sdfsPath)
+	cmdArgs = append(cmdArgs, "ec2-user@ip-"+ip_dest+":/home/ec2-user/fs513_files")	
+	
+	fmt.Println("cmdArgs: ", cmdArgs)
 	cmdOut, err := exec.Command("scp", cmdArgs...).CombinedOutput()
 	if err !=nil{
 		fmt.Println("Error ", err)

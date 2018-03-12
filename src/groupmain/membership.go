@@ -34,7 +34,7 @@ type message struct {
 	Host      string
 	Status    string
 	TimeStamp string
-	FS513FileName string
+	sdfsFileName string
 }
 
 // Member structure
@@ -218,11 +218,19 @@ func listenMessages() {
 		case "AddFile":
 			// Check if exists
 			// append to fs513 list
-			info := file_info{pkt.FS513FileName, pkt.Host}
-			fs513_list[pkt.FS513FileName] = info
+			ip_dest1 := membershipGroup[(getIdxOfHost(pkt.Host)+1)%len(membershipGroup)].Host
+			ip_dest2 := membershipGroup[(getIdxOfHost(pkt.Host)+2)%len(membershipGroup)].Host
+			
+			file_ips := make([]string, 0)
+			file_ips = append(file_ips, pkt.Host)
+			file_ips = append(file_ips, ip_dest1)
+			file_ips = append(file_ips, ip_dest2)
+				
+			info := file_info{pkt.sdfsFileName, file_ips}
+			fs513_list[pkt.sdfsFileName] = info
 			// scp files to succeding nodes
-			scpFile(pkt.Host, membershipGroup[(getIx()+1)%len(membershipGroup)].Host, pkt.FS513FileName)
-			scpFile(pkt.Host, membershipGroup[(getIx()+2)%len(membershipGroup)].Host, pkt.FS513FileName)			
+			//scpFile(pkt.Host, membershipGroup[(getIx()+1)%len(membershipGroup)].Host, pkt.FS513FileName)
+			//scpFile(pkt.Host, membershipGroup[(getIx()+2)%len(membershipGroup)].Host, pkt.FS513FileName)			
 		}
 	}
 }
@@ -388,6 +396,15 @@ func resetCorrespondingTimers() {
 func getIx() int {
 	for i, element := range membershipGroup {
 		if currHost == element.Host {
+			return i
+		}
+	}
+	return -1
+}
+
+func getIdxOfHost(host string) int {
+	for i, element := range membershipGroup {
+		if host == element.Host {
 			return i
 		}
 	}

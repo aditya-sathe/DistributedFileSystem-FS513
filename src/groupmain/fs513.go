@@ -8,6 +8,7 @@ import (
 
 const (
 	FS513_PATH = "/home/ec2-user/fs513_files/"
+	IDENTITY_FILE_PATH = "/home/ec2-user/DistributedFileSystem-FS513/chet0804.pem.txt"
 )
 
 type file_info struct {
@@ -84,7 +85,7 @@ func replicateFile(path string){
 func scpFile(sdfsPath string, ip_dest string) {
 	// scp -i chet0804.pem.txt SAATHE ec2-user@ip-172-31-29-21:/home/ec2-user/
 	cmdArgs := []string{}
-	cmdArgs = append(cmdArgs, "-i chet0804.pem.txt")
+	cmdArgs = append(cmdArgs, "-i " + IDENTITY_FILE_PATH)
 	cmdArgs = append(cmdArgs, sdfsPath)
 	cmdArgs = append(cmdArgs, "ec2-user@ip-"+ip_dest+":/home/ec2-user/fs513_files/")	
 	

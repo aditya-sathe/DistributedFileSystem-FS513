@@ -129,5 +129,5 @@ func scpFile(sdfsPath string, ip_dest string) {
 	// Finaly, copy the file over
 	// Usage: CopyFile(fileReader, remotePath, permission)
 
-	client.CopyFile(f, FS513_PATH, "0655")
+	client.CopyFile(f, sdfsPath, "0655")
 }

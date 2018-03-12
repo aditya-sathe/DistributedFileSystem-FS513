@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+	
+	"github.com/bramvdbogaerde/go-scp/auth"
+	"github.com/bramvdbogaerde/go-scp"
+    "golang.org/x/crypto/ssh"	
 )
 
 const (
@@ -84,7 +88,7 @@ func replicateFile(path string){
 
 func scpFile(sdfsPath string, ip_dest string) {
 	// scp -i chet0804.pem.txt SAATHE ec2-user@ip-172-31-29-21:/home/ec2-user/
-	cmdArgs := []string{}
+	/*cmdArgs := []string{}
 	cmdArgs = append(cmdArgs, "-i " + IDENTITY_FILE_PATH)
 	cmdArgs = append(cmdArgs, sdfsPath)
 	cmdArgs = append(cmdArgs, "ec2-user@"+ip_dest+":/home/ec2-user/fs513_files/")	
@@ -94,5 +98,35 @@ func scpFile(sdfsPath string, ip_dest string) {
 	if err !=nil{
 		fmt.Println("Error ", err)
 		fmt.Println("Cmdout " + string(cmdOut))
+	}*/
+	
+	// Use SSH key authentication from the auth package
+    // we ignore the host key in this example, please change this if you use this library
+	clientConfig, _ := auth.PrivateKey("ec2-user", IDENTITY_FILE_PATH , ssh.InsecureIgnoreHostKey())
+	
+	// For other authentication methods see ssh.ClientConfig and ssh.AuthMethod
+
+	// Create a new SCP client
+	client := scp.NewClient(ip_dest, &clientConfig)
+	
+	// Connect to the remote server
+	err := client.Connect()
+	if err != nil{
+		fmt.Println("Couldn't establisch a connection to the remote server ", err)
+		return		
 	}
+
+	// Open a file
+	f, _ := os.Open(sdfsPath)
+
+	// Close session after the file has been copied
+	defer client.Session.Close()
+	
+	// Close the file after it has been copied
+	defer f.Close()
+	
+	// Finaly, copy the file over
+	// Usage: CopyFile(fileReader, remotePath, permission)
+
+	client.CopyFile(f, FS513_PATH, "0655")
 }

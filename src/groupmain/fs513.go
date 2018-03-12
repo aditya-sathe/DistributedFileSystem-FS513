@@ -108,7 +108,7 @@ func scpFile(sdfsPath string, ip_dest string) {
 	// For other authentication methods see ssh.ClientConfig and ssh.AuthMethod
 
 	// Create a new SCP client
-	client := scp.NewClient(ip_dest+":0",&clientConfig)
+	client := scp.NewClient(ip_dest+":21",&clientConfig)
 	
 	// Connect to the remote server
 	err := client.Connect()

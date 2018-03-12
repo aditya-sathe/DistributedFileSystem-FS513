@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"os"
 	"time"
 	
 	"github.com/bramvdbogaerde/go-scp/auth"

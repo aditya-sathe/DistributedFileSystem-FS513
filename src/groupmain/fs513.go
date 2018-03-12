@@ -86,12 +86,12 @@ func scpFile(sdfsPath string, ip_dest string) {
 	cmdArgs := []string{}
 	cmdArgs = append(cmdArgs, "-i chet0804.pem.txt")
 	cmdArgs = append(cmdArgs, sdfsPath)
-	cmdArgs = append(cmdArgs, "ec2-user@ip-"+ip_dest+":/home/ec2-user/fs513_files")	
+	cmdArgs = append(cmdArgs, "ec2-user@ip-"+ip_dest+":/home/ec2-user/fs513_files/")	
 	
 	fmt.Println("cmdArgs: ", cmdArgs)
 	cmdOut, err := exec.Command("scp", cmdArgs...).CombinedOutput()
 	if err !=nil{
 		fmt.Println("Error ", err)
-		fmt.Println("Cmdout ", cmdOut)
+		fmt.Println("Cmdout " + string(cmdOut))
 	}
 }

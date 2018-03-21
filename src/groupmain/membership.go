@@ -23,7 +23,8 @@ const (
 	ACK_TIMEOUT    = time.Millisecond * 2500
 	SYN_TIMEOUT    = time.Second * 1
 	MSG_PORT       = ":50000" // Port for listening to messages
-	GTW_PORT       = ":50001" // Gateway port to listen
+	MG_GT_PORT     = ":50001" // Gateway port to listen to membership list
+	FL_GT_PORT     = ":50002" // Gateway port to listen to file list
 	LCL_PORT       = ":0"     // Dummy local port
 	UDP            = "udp"    // UDP protocol identifier
 	PACKET_LOSS    = 0        // Packet loss simulation constant between 0-100
@@ -34,7 +35,7 @@ type message struct {
 	Host      string
 	Status    string
 	TimeStamp string
-	sdfsFileName string
+	fs513FileName string
 }
 
 // Member structure
@@ -67,8 +68,9 @@ var (
 func main() {
 	initDatas()
 
-	go listenMessages()
-	go listenGateway()
+	go listenToMessages()
+	go listenToGatewayMG()
+	go listenToGatewayFL()
 	go sendSyn()
 	go checkAck(1)
 	go checkAck(2)
@@ -129,9 +131,9 @@ func takeUserInput() {
 			local_path, _ := reader.ReadString('\n')
 			local_path = strings.TrimRight(local_path, "\n")
 			fmt.Println("FS513 name?")
-			sdfs_name, _ := reader.ReadString('\n')
-			sdfs_name = strings.TrimRight(sdfs_name, "\n")
-			addFileToFS(local_path, sdfs_name)
+			fs513_name, _ := reader.ReadString('\n')
+			fs513_name = strings.TrimRight(fs513_name, "\n")
+			addFileToFS(local_path, fs513_name)
 		default:
 			fmt.Println("Invalid command")
 		}
@@ -165,7 +167,7 @@ func grepClient(reader *bufio.Reader) {
  * Listen to messages on UDP port from other nodes and take appropriate action. Possible message types are
  * Join, SYN, ACK, Failed and Leave
  */
-func listenMessages() {
+func listenToMessages() {
 	addr, err := net.ResolveUDPAddr(UDP, MSG_PORT)
 	if err != nil {
 		fmt.Println("listenmessages:Not able to resolve udp")
@@ -188,6 +190,7 @@ func listenMessages() {
 			fmt.Println("listenmessages:Not able to read from Conn")
 			errlog.Println(err)
 		}
+		// can this be done in go routine.
 		switch pkt.Status {
 		case "Join":
 			node := member{pkt.Host, time.Now().Format(time.RFC850)}
@@ -226,11 +229,10 @@ func listenMessages() {
 			file_ips = append(file_ips, ip_dest1)
 			file_ips = append(file_ips, ip_dest2)
 				
-			info := file_info{pkt.sdfsFileName, file_ips}
-			fs513_list[pkt.sdfsFileName] = info
-			// scp files to succeding nodes
-			//scpFile(pkt.Host, membershipGroup[(getIx()+1)%len(membershipGroup)].Host, pkt.FS513FileName)
-			//scpFile(pkt.Host, membershipGroup[(getIx()+2)%len(membershipGroup)].Host, pkt.FS513FileName)			
+			info := file_info{pkt.fs513FileName, file_ips}
+			fs513_list[pkt.fs513FileName] = info
+			// Broadcast update to all nodes
+			broadcastFileList()		
 		}
 	}
 }
@@ -238,8 +240,8 @@ func listenMessages() {
 /*
  * Listen to membership list updates send from Gateway node.
  */
-func listenGateway() {
-	addr, err := net.ResolveUDPAddr(UDP, GTW_PORT)
+func listenToGatewayMG() {
+	addr, err := net.ResolveUDPAddr(UDP, MG_GT_PORT)
 	if err != nil {
 		fmt.Println("listen gateway:Not able to resolve udp")
 		errlog.Println(err)
@@ -536,7 +538,7 @@ func broadcastGroup(node member) {
 	for ix, element := range membershipGroup {
 		if element.Host != currHost {
 
-			serverAddr, err := net.ResolveUDPAddr(UDP, membershipGroup[ix].Host+GTW_PORT)
+			serverAddr, err := net.ResolveUDPAddr(UDP, membershipGroup[ix].Host+MG_GT_PORT)
 			if err != nil {
 				fmt.Println("BroadcastGroup: not able to Resolve server address")
 				errlog.Println(err)
@@ -564,6 +566,45 @@ func broadcastGroup(node member) {
 				errlog.Println(err)
 			}
 
+		}
+	}
+}
+
+func broadcastFileList(){
+	
+	var listbuf bytes.Buffer
+	
+	if err := gob.NewEncoder(&listbuf).Encode(fs513_list); err != nil {
+		fmt.Println("broadcastFileList: not able to encode")
+		errlog.Println(err)
+	}
+
+	for _, element := range membershipGroup {
+		if element.Host != currHost {
+
+			serverAddr, err := net.ResolveUDPAddr(UDP, element.Host + FL_GT_PORT)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to Resolve server address")
+				errlog.Println(err)
+			}
+
+			localAddr, err := net.ResolveUDPAddr(UDP, currHost + LCL_PORT)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to Resolve local address")
+				errlog.Println(err)
+			}
+
+			conn, err := net.DialUDP(UDP, localAddr, serverAddr)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to dial")
+				errlog.Println(err)
+			}
+
+			_, err = conn.Write(listbuf.Bytes())
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to write to connection")
+				errlog.Println(err)
+			}
 		}
 	}
 }

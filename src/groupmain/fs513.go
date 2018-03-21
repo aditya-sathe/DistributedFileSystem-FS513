@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"os"
 	"time"
-	
+	"encoding/gob"
+	"net"
+	"bytes"
 	"github.com/bramvdbogaerde/go-scp/auth"
 	"github.com/bramvdbogaerde/go-scp"
     "golang.org/x/crypto/ssh"	
@@ -13,7 +15,7 @@ import (
 
 const (
 	FS513_PATH = "/home/ec2-user/fs513_files/"
-	IDENTITY_FILE_PATH = "/home/ec2-user/DistributedFileSystem-FS513/chet0804.pem.txt"
+	IDENTITY_FILE_PATH = "/home/ec2-user/id_file/chet0804.pem.txt"
 )
 
 type file_info struct {
@@ -25,14 +27,19 @@ var fs513_list = make(map[string]file_info)
 
 var local_files = make([]string, 0)
 
-func addFileToFS(local_path string, sdfs_name string) {
+func addFileToFS(local_path string, fs513_name string) {
 		
 	//absPath, _ := filepath.Abs(FS513_PATH)
 	/*if _, err := os.Stat(absPath); os.IsNotExist(err){
 		os.MkdirAll(absPath, os.ModePerm)
 	}*/
-	sdfsPath :=  FS513_PATH + sdfs_name
-	cmdOut, err := exec.Command("cp", local_path, sdfsPath).CombinedOutput()
+	if _, ok := fs513_list[fs513_name] ; ok {
+		fmt.Println("File "+ fs513_name + " exists in FS513 system")
+		return
+	}
+	
+	fs513Path :=  FS513_PATH + fs513_name
+	cmdOut, err := exec.Command("cp", local_path, fs513Path).CombinedOutput()
 	//errorCheck(err)
 	if err != nil {
 		fmt.Println("Error while copying ", err)
@@ -40,8 +47,8 @@ func addFileToFS(local_path string, sdfs_name string) {
 		return
 	}
 	if currHost != GATEWAY {
-		replicateFile(sdfsPath)
-		sendUpdGateway(sdfs_name)
+		replicateFile(fs513Path)
+		sendUpdGateway(fs513_name)
 	} /*else {
 		//TODO What if file exists?
 		ip_dest1 := membershipList[(getIndex(currHost)+1)%len(membershipList)].Host
@@ -67,12 +74,12 @@ func addFileToFS(local_path string, sdfs_name string) {
 
 		sendMsg(message, targetHosts)
 	} */
-	local_files = append(local_files, sdfs_name)
-	//infoCheck("file " + sdfs_name + " added to "+ currHost)
+	local_files = append(local_files, fs513_name)
+	//infoCheck("file " + fs513_name + " added to "+ currHost)
 }
 
-func sendUpdGateway(sdfs_name string) {
-	msg := message{currHost, "AddFile", time.Now().Format(time.RFC850), sdfs_name}
+func sendUpdGateway(fs513_name string) {
+	msg := message{currHost, "AddFile", time.Now().Format(time.RFC850), fs513_name}
 	var targetHosts = make([]string, 1)
 	targetHosts[0] = GATEWAY
 
@@ -87,7 +94,7 @@ func replicateFile(path string){
 	scpFile(path,ipDest2)
 }
 
-func scpFile(sdfsPath string, ip_dest string) {
+func scpFile(fs513Path string, ip_dest string) {
 	// scp -i chet0804.pem.txt SAATHE ec2-user@ip-172-31-29-21:/home/ec2-user/
 	/*cmdArgs := []string{}
 	cmdArgs = append(cmdArgs, "-i " + IDENTITY_FILE_PATH)
@@ -118,7 +125,7 @@ func scpFile(sdfsPath string, ip_dest string) {
 	}
 
 	// Open a file
-	f, _ := os.Open(sdfsPath)
+	f, _ := os.Open(fs513Path)
 
 	// Close session after the file has been copied
 	defer client.Session.Close()
@@ -129,5 +136,41 @@ func scpFile(sdfsPath string, ip_dest string) {
 	// Finaly, copy the file over
 	// Usage: CopyFile(fileReader, remotePath, permission)
 
-	client.CopyFile(f, sdfsPath, "0655")
+	client.CopyFile(f, fs513Path, "0655")
+}
+
+/*
+ * Listen to fs513 file list updates send from Gateway node.
+ */
+func listenToGatewayFL() {
+	addr, err := net.ResolveUDPAddr(UDP, FL_GT_PORT)
+	if err != nil {
+		fmt.Println("listen gateway:Not able to resolve udp")
+		errlog.Println(err)
+	}
+
+	conn, err := net.ListenUDP(UDP, addr)
+	if err != nil {
+		fmt.Println("listen gateway:Not able to resolve udp")
+		errlog.Println(err)
+	}
+	defer conn.Close()
+
+	buf := make([]byte, 1024)
+
+	for {
+		rcvd_list := make(map[string]file_info)
+		n, _, err := conn.ReadFromUDP(buf)
+		err = gob.NewDecoder(bytes.NewReader(buf[:n])).Decode(&rcvd_list)
+		if err != nil {
+			fmt.Println("listen gateway:Not able to resolve udp")
+			errlog.Println(err)
+		}
+
+		mutex.Lock()
+		fs513_list = rcvd_list
+		mutex.Unlock()
+		
+		infolog.Println("File List Received: " , fs513_list)
+	}
 }

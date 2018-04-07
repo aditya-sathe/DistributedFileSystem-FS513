@@ -1,44 +1,40 @@
 package main
 
 import (
-	"fmt"
-	"os/exec"
-	"os"
-	"time"
-	"encoding/gob"
-	"net"
 	"bytes"
-	"github.com/bramvdbogaerde/go-scp/auth"
+	"encoding/gob"
+	"fmt"
 	"github.com/bramvdbogaerde/go-scp"
-    "golang.org/x/crypto/ssh"	
+	"github.com/bramvdbogaerde/go-scp/auth"
+	"golang.org/x/crypto/ssh"
+	"net"
+	"os"
+	"os/exec"
+	"time"
 )
 
 const (
-	FS513_PATH = "/home/ec2-user/fs513_files/"
+	COM_FS513_PATH     = "/home/ec2-user/fs513_files/"
 	IDENTITY_FILE_PATH = "/home/ec2-user/id_file/chet0804.pem.txt"
 )
 
-type file_info struct {
-	Name  string
-	IPs   []string
-}
-
-var fs513_list = make(map[string]file_info)
+var fs513_list = make(map[string][]string)
 
 var local_files = make([]string, 0)
 
 func addFileToFS(local_path string, fs513_name string) {
-		
+
 	//absPath, _ := filepath.Abs(FS513_PATH)
 	/*if _, err := os.Stat(absPath); os.IsNotExist(err){
 		os.MkdirAll(absPath, os.ModePerm)
 	}*/
-	if _, ok := fs513_list[fs513_name] ; ok {
-		fmt.Println("File "+ fs513_name + " exists in FS513 system")
+	if _, ok := fs513_list[fs513_name]; ok {
+		fmt.Println("File " + fs513_name + " exists in FS513 system")
+		// Do you want to update?
 		return
 	}
-	
-	fs513Path :=  FS513_PATH + fs513_name
+
+	fs513Path := COM_FS513_PATH + fs513_name
 	cmdOut, err := exec.Command("cp", local_path, fs513Path).CombinedOutput()
 	//errorCheck(err)
 	if err != nil {
@@ -46,97 +42,126 @@ func addFileToFS(local_path string, fs513_name string) {
 		fmt.Println(cmdOut)
 		return
 	}
+	
+	replicateFile(fs513Path)
+
 	if currHost != GATEWAY {
-		replicateFile(fs513Path)
-		sendUpdGateway(fs513_name)
-	} /*else {
-		//TODO What if file exists?
-		ip_dest1 := membershipList[(getIndex(currHost)+1)%len(membershipList)].Host
-		ip_dest2 := membershipList[(getIndex(currHost)+2)%len(membershipList)].Host
-		ip_dest3 := membershipList[(getIndex(currHost)+3)%len(membershipList)].Host
-		go sendFile(currHost, ip_dest1, sdfs_name)
-		go sendFile(currHost, ip_dest2, sdfs_name)
-		go sendFile(currHost, ip_dest3, sdfs_name)
+		sendUpdGateway(fs513_name, "AddFile")
+	} else {
+		// Update fs513 List for Gateway 
+		ip_dest1 := membershipGroup[(getIx()+1)%len(membershipGroup)].Host
+		ip_dest2 := membershipGroup[(getIx()+2)%len(membershipGroup)].Host
 
 		file_ips := make([]string, 0)
 		file_ips = append(file_ips, currHost)
 		file_ips = append(file_ips, ip_dest1)
 		file_ips = append(file_ips, ip_dest2)
-		file_ips = append(file_ips, ip_dest3)
-		file_list[sdfs_name] = file_info{sdfs_name, file_ips, getFileSize(local_path)}
-		sendFileMD()
 
-		message := message{currHost, "FileSent", time.Now().Format(time.RFC850), file_list[sdfs_name]}
-		var targetHosts = make([]string, 3)
-		targetHosts[0] = ip_dest1
-		targetHosts[1] = ip_dest2
-		targetHosts[2] = ip_dest3
-
-		sendMsg(message, targetHosts)
-	} */
+		fs513_list[fs513_name] = file_ips
+		// Broadcast update to all nodes
+		broadcastFileList()
+	} 
 	local_files = append(local_files, fs513_name)
-	//infoCheck("file " + fs513_name + " added to "+ currHost)
+	infolog.Println("file " + fs513_name + " added to " + currHost)
 }
 
-func sendUpdGateway(fs513_name string) {
-	msg := message{currHost, "AddFile", time.Now().Format(time.RFC850), fs513_name}
+func deleteFileFromFS(fs513_name string){
+	
+	if _, ok := fs513_list[fs513_name]; !ok {
+		fmt.Println("File " + fs513_name + " does not exists in FS513 system")
+		return
+	}
+	// Send Delete msg to Gateway
+	if currHost != GATEWAY {
+		sendUpdGateway(fs513_name, "DelFile")
+	} else {
+		removeFileFromFS(fs513_name)
+	}
+}
+
+func removeFileFromFS(fs513_name string){
+	// Check if present locally
+	var present bool = false
+	for _,v := range local_files{
+		if v == fs513_name {
+			present = true
+		}
+	} 
+	if !present {
+		fmt.Println("File " + fs513_name + " does not exists in locally in " + currHost)
+		return
+	}
+	
+	// Remove file from directory
+	cmdArgs := make([]string, 0)
+	cmdArgs = append(cmdArgs, "-f")
+	cmdArgs = append(cmdArgs, COM_FS513_PATH + fs513_name)
+	fmt.Println("rm file string: ", cmdArgs)
+	cmdOut, err := exec.Command("rm", cmdArgs...).CombinedOutput()
+	
+	if err != nil {
+		fmt.Println("ERROR WHILE READING")
+		fmt.Println(err)
+		fmt.Println(string(cmdOut))
+	}
+	// Remove file local array	
+	for index, element := range local_files {
+		if element == fs513_name {
+			local_files = append(local_files[:index], local_files[index+1:]...)
+			break
+		}
+	}
+	infolog.Println("file " + fs513_name + " removed from " + currHost)
+
+}
+
+func sendUpdGateway(fs513_name string, status string) {
+	msg := message{currHost, status, time.Now().Format(time.RFC850), fs513_name}
 	var targetHosts = make([]string, 1)
 	targetHosts[0] = GATEWAY
 
 	sendToHosts(msg, targetHosts)
 }
 
-func replicateFile(path string){
+func replicateFile(path string) {
 	ipDest1 := membershipGroup[(getIx()+1)%len(membershipGroup)].Host
 	ipDest2 := membershipGroup[(getIx()+2)%len(membershipGroup)].Host
-	
-	scpFile(path,ipDest1)
-	scpFile(path,ipDest2)
+
+	scpFile(path, ipDest1)
+	scpFile(path, ipDest2)
 }
 
 func scpFile(fs513Path string, ip_dest string) {
 	// scp -i chet0804.pem.txt SAATHE ec2-user@ip-172-31-29-21:/home/ec2-user/
-	/*cmdArgs := []string{}
-	cmdArgs = append(cmdArgs, "-i " + IDENTITY_FILE_PATH)
-	cmdArgs = append(cmdArgs, sdfsPath)
-	cmdArgs = append(cmdArgs, "ec2-user@"+ip_dest+":/home/ec2-user/fs513_files/")	
-	
-	fmt.Println("cmdArgs: ", cmdArgs)
-	cmdOut, err := exec.Command("scp", cmdArgs...).CombinedOutput()
-	if err !=nil{
-		fmt.Println("Error ", err)
-		fmt.Println("Cmdout " + string(cmdOut))
-	}*/
-	
+
 	// Use SSH key authentication from the auth package
-    // we ignore the host key in this example, please change this if you use this library
-	clientConfig, _ := auth.PrivateKey("ec2-user", IDENTITY_FILE_PATH , ssh.InsecureIgnoreHostKey())
-	
+	// we ignore the host key in this example, please change this if you use this library
+	clientConfig, _ := auth.PrivateKey("ec2-user", IDENTITY_FILE_PATH, ssh.InsecureIgnoreHostKey())
+
 	// For other authentication methods see ssh.ClientConfig and ssh.AuthMethod
 
 	// Create a new SCP client
-	client := scp.NewClient(ip_dest+":22",&clientConfig)
-	
+	client := scp.NewClient(ip_dest+":22", &clientConfig)
+
 	// Connect to the remote server
 	err := client.Connect()
-	if err != nil{
+	if err != nil {
 		fmt.Println("Couldn't establish a connection to the remote server ", err)
-		return		
+		return
 	}
 
 	// Open a file
-	f, _ := os.Open(fs513Path)
+	srcfile, _ := os.Open(fs513Path)
 
 	// Close session after the file has been copied
 	defer client.Session.Close()
-	
+
 	// Close the file after it has been copied
-	defer f.Close()
-	
+	defer srcfile.Close()
+
 	// Finaly, copy the file over
 	// Usage: CopyFile(fileReader, remotePath, permission)
-
-	client.CopyFile(f, fs513Path, "0655")
+	client.CopyFile(srcfile, COM_FS513_PATH, "0655")
 }
 
 /*
@@ -159,7 +184,7 @@ func listenToGatewayFL() {
 	buf := make([]byte, 1024)
 
 	for {
-		rcvd_list := make(map[string]file_info)
+		rcvd_list := make(map[string][]string)
 		n, _, err := conn.ReadFromUDP(buf)
 		err = gob.NewDecoder(bytes.NewReader(buf[:n])).Decode(&rcvd_list)
 		if err != nil {
@@ -170,7 +195,7 @@ func listenToGatewayFL() {
 		mutex.Lock()
 		fs513_list = rcvd_list
 		mutex.Unlock()
-		
-		infolog.Println("File List Received: " , fs513_list)
+
+		infolog.Println("File List Received: ", fs513_list)
 	}
 }

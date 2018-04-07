@@ -32,9 +32,9 @@ const (
 
 // Message structure
 type message struct {
-	Host      string
-	Status    string
-	TimeStamp string
+	Host          string
+	Status        string
+	TimeStamp     string
 	fs513FileName string
 }
 
@@ -66,7 +66,6 @@ var (
  * Main function entry point
  */
 func main() {
-	initDatas()
 
 	go listenToMessages()
 	go listenToGatewayMG()
@@ -81,6 +80,39 @@ func main() {
 }
 
 /*
+ * Initialize all variables
+ */
+func init() {
+
+	currHost = utils.GetLocalIP()
+	initMG()
+
+	timers[0] = time.NewTimer(ACK_TIMEOUT)
+	timers[1] = time.NewTimer(ACK_TIMEOUT)
+	timers[2] = time.NewTimer(ACK_TIMEOUT)
+	timers[0].Stop()
+	timers[1].Stop()
+	timers[2].Stop()
+
+	absPath, _ := filepath.Abs(utils.LOG_FILE_GREP)
+	logfile_exists := 1
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		logfile_exists = 0
+		os.Mkdir("src/logs", os.ModePerm)
+	}
+
+	logfile, _ := os.OpenFile(absPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	errlog = log.New(logfile, "ERROR: ", log.Ldate|log.Lmicroseconds|log.Lshortfile)
+	infolog = log.New(logfile, "INFO: ", log.Ldate|log.Lmicroseconds)
+	emptylog = log.New(logfile, "\n----------------------------------------------------------------------------------------\n", log.Ldate|log.Ltime)
+
+	if logfile_exists == 1 {
+		emptylog.Println("")
+	}
+
+}
+
+/*
  * Take input from user from stdin and executes corresponding function
  */
 func takeUserInput() {
@@ -88,16 +120,18 @@ func takeUserInput() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		fmt.Println("1 Print membership list")
-		fmt.Println("2 Print self ID")
-		fmt.Println("3 Join group")
-		fmt.Println("4 Leave group")
-		fmt.Println("5 Grep node logs")
-		fmt.Println("********************* FS513 Options *************************************")
-		fmt.Println("6 put [localfilename] [fs513filename]")
-		fmt.Println("7 get [fs513filename]")
-		fmt.Println("8 delete [fs513filename]")
-		fmt.Println("9 ls [fs513filename]\n")
+		fmt.Println("1  - Print membership list")
+		fmt.Println("2  - Print self ID")
+		fmt.Println("3  - Join group")
+		fmt.Println("4  - Leave group")
+		fmt.Println("5  - Grep node logs")
+		fmt.Println("********************* FS513 Options *****************************")
+		fmt.Println("6  - put [localfilename] [fs513filename]")
+		fmt.Println("7  - get [fs513filename]")
+		fmt.Println("8  - remove [fs513filename]")
+		fmt.Println("9  - locate [fs513filename]")
+		fmt.Println("10 - list all fs513 files")
+		fmt.Println("11 - list all local files")
 		fmt.Println("Enter option: ")
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSuffix(input, "\n")
@@ -134,6 +168,16 @@ func takeUserInput() {
 			fs513_name, _ := reader.ReadString('\n')
 			fs513_name = strings.TrimRight(fs513_name, "\n")
 			addFileToFS(local_path, fs513_name)
+		case "7":
+		case "8":
+		    fmt.Println("FS513 name?")
+			fs513_name, _ := reader.ReadString('\n')
+			fs513_name = strings.TrimRight(fs513_name, "\n")
+			deleteFileFromFS(fs513_name)
+		case "9":
+		case "10":
+		case "11":
+
 		default:
 			fmt.Println("Invalid command")
 		}
@@ -190,9 +234,9 @@ func listenToMessages() {
 			fmt.Println("listenmessages:Not able to read from Conn")
 			errlog.Println(err)
 		}
-		// can this be done in go routine.
+		// can this be done in goroutine.
 		switch pkt.Status {
-		case "Join":
+		case "Join":   // Received only by Gateway
 			node := member{pkt.Host, time.Now().Format(time.RFC850)}
 			if checkTimeStamp(node) == 0 {
 				mutex.Lock()
@@ -218,21 +262,31 @@ func listenToMessages() {
 			resetCorrespondingTimers()
 			spreadGroup(pkt)
 			mutex.Unlock()
-		case "AddFile":
-			// Check if exists
+		case "AddFile":  // Received only by Gateway
 			// append to fs513 list
 			ip_dest1 := membershipGroup[(getIdxOfHost(pkt.Host)+1)%len(membershipGroup)].Host
 			ip_dest2 := membershipGroup[(getIdxOfHost(pkt.Host)+2)%len(membershipGroup)].Host
-			
+
 			file_ips := make([]string, 0)
 			file_ips = append(file_ips, pkt.Host)
 			file_ips = append(file_ips, ip_dest1)
 			file_ips = append(file_ips, ip_dest2)
-				
-			info := file_info{pkt.fs513FileName, file_ips}
-			fs513_list[pkt.fs513FileName] = info
+
+			//info := file_info{pkt.fs513FileName, file_ips}
+			fs513_list[pkt.fs513FileName] = file_ips
 			// Broadcast update to all nodes
-			broadcastFileList()		
+			broadcastFileList()
+		case "DelFile":   // Received only by Gateway
+			// Get IPs for the fs513 file name
+			ips := fs513_list[pkt.fs513FileName]		
+			// Send remove file msg to the ips
+			msg := message{currHost, "rmfile", time.Now().Format(time.RFC850), pkt.fs513FileName}
+			sendToHosts(msg, ips)
+			// delete from file list and broadcast filelist
+			delete(fs513_list, pkt.fs513FileName)
+			broadcastFileList()
+		case "rmfile":   // Received by node where file is located
+			removeFileFromFS(pkt.fs513FileName)
 		}
 	}
 }
@@ -329,38 +383,6 @@ func initMG() {
 	membershipGroup = append(membershipGroup, node)
 }
 
-/*
- * Initialize all variables
- */
-func initDatas() {
-
-	currHost = utils.GetLocalIP()
-	initMG()
-
-	timers[0] = time.NewTimer(ACK_TIMEOUT)
-	timers[1] = time.NewTimer(ACK_TIMEOUT)
-	timers[2] = time.NewTimer(ACK_TIMEOUT)
-	timers[0].Stop()
-	timers[1].Stop()
-	timers[2].Stop()
-
-	absPath, _ := filepath.Abs(utils.LOG_FILE_GREP)
-	logfile_exists := 1
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		logfile_exists = 0
-		os.Mkdir("src/logs", os.ModePerm)
-	}
-
-	logfile, _ := os.OpenFile(absPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	errlog = log.New(logfile, "ERROR: ", log.Ldate|log.Lmicroseconds|log.Lshortfile)
-	infolog = log.New(logfile, "INFO: ", log.Ldate|log.Lmicroseconds)
-	emptylog = log.New(logfile, "\n----------------------------------------------------------------------------------------\n", log.Ldate|log.Ltime)
-
-	if logfile_exists == 1 {
-		emptylog.Println("")
-	}
-
-}
 
 /*
  * The function which removes the node from the Membershiplist and updates the list.
@@ -570,10 +592,10 @@ func broadcastGroup(node member) {
 	}
 }
 
-func broadcastFileList(){
-	
+func broadcastFileList() {
+
 	var listbuf bytes.Buffer
-	
+
 	if err := gob.NewEncoder(&listbuf).Encode(fs513_list); err != nil {
 		fmt.Println("broadcastFileList: not able to encode")
 		errlog.Println(err)
@@ -582,13 +604,13 @@ func broadcastFileList(){
 	for _, element := range membershipGroup {
 		if element.Host != currHost {
 
-			serverAddr, err := net.ResolveUDPAddr(UDP, element.Host + FL_GT_PORT)
+			serverAddr, err := net.ResolveUDPAddr(UDP, element.Host+FL_GT_PORT)
 			if err != nil {
 				fmt.Println("broadcastFileList: not able to Resolve server address")
 				errlog.Println(err)
 			}
 
-			localAddr, err := net.ResolveUDPAddr(UDP, currHost + LCL_PORT)
+			localAddr, err := net.ResolveUDPAddr(UDP, currHost+LCL_PORT)
 			if err != nil {
 				fmt.Println("broadcastFileList: not able to Resolve local address")
 				errlog.Println(err)

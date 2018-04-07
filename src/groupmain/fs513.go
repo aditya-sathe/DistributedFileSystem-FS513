@@ -151,17 +151,18 @@ func scpFile(fs513Path string, ip_dest string) {
 	}
 
 	// Open a file
-	srcfile, _ := os.Open(fs513Path)
-
+	srcpath, _ := os.Open(fs513Path)
+	// Create remote path
+	remotePath := fs513Path
 	// Close session after the file has been copied
 	defer client.Session.Close()
 
 	// Close the file after it has been copied
-	defer srcfile.Close()
+	defer srcpath.Close()
 
 	// Finaly, copy the file over
 	// Usage: CopyFile(fileReader, remotePath, permission)
-	client.CopyFile(srcfile, COM_FS513_PATH, "0655")
+	client.CopyFile(srcpath, remotePath, "0655")
 }
 
 /*

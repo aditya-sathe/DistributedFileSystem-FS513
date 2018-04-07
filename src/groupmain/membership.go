@@ -176,6 +176,10 @@ func takeUserInput() {
 			deleteFileFromFS(fs513_name)
 		case "9":
 		case "10":
+			//list all fs513 files
+			for k,v := range fs513_list {
+				fmt.Println("FS513 File:" + k + " IPs:", v)
+			} 
 		case "11":
 
 		default:

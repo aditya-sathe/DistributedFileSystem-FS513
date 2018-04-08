@@ -275,7 +275,7 @@ func listenToMessages() {
 			file_ips = append(file_ips, pkt.Host)
 			file_ips = append(file_ips, ip_dest1)
 			file_ips = append(file_ips, ip_dest2)
-
+			fmt.Println("Pkt: " , pkt)
 			//info := file_info{pkt.fs513FileName, file_ips}
 			fs513_list[pkt.fs513FileName] = file_ips
 			// Broadcast update to all nodes

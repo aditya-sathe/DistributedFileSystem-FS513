@@ -44,6 +44,7 @@ func addFileToFS(local_path string, fs513_name string) {
 	replicateFile(fs513Path)
 
 	if currHost != GATEWAY {
+		fmt.Println("addFileToFS: " + fs513_name)
 		sendUpdGateway(fs513_name, "AddFile")
 	} else {
 		// Update fs513 List for Gateway 
@@ -107,6 +108,7 @@ func removeFileFromFS(fs513_name string){
 }
 
 func sendUpdGateway(fs513_name string, status string) {
+	fmt.Println("sendUpdGateway: " + fs513_name)
 	msg := message{currHost, status, time.Now().Format(time.RFC850), fs513_name}
 	var targetHosts = make([]string, 1)
 	targetHosts[0] = GATEWAY

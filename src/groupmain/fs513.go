@@ -22,12 +22,15 @@ var fs513_list = make(map[string][]string)
 
 var local_files = make([]string, 0)
 
+func init() {
+	// remove old fs513 files 
+	execCommand("rm", "-rf", COM_FS513_PATH + "*")
+}
+
 func addFileToFS(local_path string, fs513_name string) {
 
-	//absPath, _ := filepath.Abs(FS513_PATH)
-	/*if _, err := os.Stat(absPath); os.IsNotExist(err){
-		os.MkdirAll(absPath, os.ModePerm)
-	}*/
+	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
+	
 	if _, ok := fs513_list[fs513_name]; ok {
 		fmt.Println("File " + fs513_name + " exists in FS513 system")
 		// Do you want to update?
@@ -35,14 +38,9 @@ func addFileToFS(local_path string, fs513_name string) {
 	}
 
 	fs513Path := COM_FS513_PATH + fs513_name
-	cmdOut, err := exec.Command("cp", local_path, fs513Path).CombinedOutput()
-	//errorCheck(err)
-	if err != nil {
-		fmt.Println("Error while copying ", err)
-		fmt.Println(cmdOut)
+	if execCommand("cp", local_path, fs513Path) == -1{
 		return
 	}
-	
 	replicateFile(fs513Path)
 
 	if currHost != GATEWAY {
@@ -93,16 +91,9 @@ func removeFileFromFS(fs513_name string){
 	}
 	
 	// Remove file from directory
-	cmdArgs := make([]string, 0)
-	cmdArgs = append(cmdArgs, "-f")
-	cmdArgs = append(cmdArgs, COM_FS513_PATH + fs513_name)
-	fmt.Println("rm file string: ", cmdArgs)
-	cmdOut, err := exec.Command("rm", cmdArgs...).CombinedOutput()
-	
-	if err != nil {
-		fmt.Println("ERROR WHILE READING")
-		fmt.Println(err)
-		fmt.Println(string(cmdOut))
+	fmt.Println("Removing file: ", COM_FS513_PATH + fs513_name)
+	if execCommand("rm", "-f", COM_FS513_PATH + fs513_name) == -1{
+		return
 	}
 	// Remove file local array	
 	for index, element := range local_files {
@@ -199,4 +190,15 @@ func listenToGatewayFL() {
 
 		infolog.Println("File List Received: ", fs513_list)
 	}
+}
+
+func execCommand(cmd string, cmdArgs ...string) int{	
+	cmdOut, err := exec.Command(cmd, cmdArgs...).CombinedOutput()
+	if err != nil {
+		fmt.Println("Error while executing command: "+ cmd, err)
+		fmt.Println("Error is ", err)
+		fmt.Println(string(cmdOut))
+		return -1
+	}
+	return 0
 }

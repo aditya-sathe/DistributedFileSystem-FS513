@@ -35,7 +35,7 @@ type message struct {
 	Host          string
 	Status        string
 	TimeStamp     string
-	fs513FileName string
+	FS513Name 	  string
 }
 
 // Member structure
@@ -238,7 +238,11 @@ func listenToMessages() {
 			fmt.Println("listenmessages:Not able to read from Conn")
 			errlog.Println(err)
 		}
-		// can this be done in goroutine.
+		go processMsg(pkt)
+	}
+}
+
+func processMsg(pkt message){
 		switch pkt.Status {
 		case "Join":   // Received only by Gateway
 			node := member{pkt.Host, time.Now().Format(time.RFC850)}
@@ -264,7 +268,9 @@ func listenToMessages() {
 			infolog.Println("Received [" + pkt.Status + "] Msg from " + pkt.Host + " TS - " + time.Now().Format(time.StampMicro))
 			mutex.Lock()
 			resetCorrespondingTimers()
-			spreadGroup(pkt)
+			if forwardMsg(pkt) == 0 && currHost == GATEWAY {
+				go updateFileList(pkt.Host)
+			}
 			mutex.Unlock()
 		case "AddFile":  // Received only by Gateway
 			// append to fs513 list
@@ -277,24 +283,25 @@ func listenToMessages() {
 			file_ips = append(file_ips, ip_dest2)
 			fmt.Println("Pkt: " , pkt)
 			//info := file_info{pkt.fs513FileName, file_ips}
-			fs513_list[pkt.fs513FileName] = file_ips
+			fs513_list[pkt.FS513Name] = file_ips
 			// Broadcast update to all nodes
 			broadcastFileList()
 		case "DelFile":   // Received only by Gateway
 			// Get IPs for the fs513 file name
-			ips := fs513_list[pkt.fs513FileName]		
+			ips := fs513_list[pkt.FS513Name]		
 			// Send remove file msg to the ips
-			msg := message{currHost, "rmfile", time.Now().Format(time.RFC850), pkt.fs513FileName}
+			msg := message{currHost, "rmfile", time.Now().Format(time.RFC850), pkt.FS513Name}
 			sendToHosts(msg, ips)
 			// delete from file list and broadcast filelist
-			delete(fs513_list, pkt.fs513FileName)
+			delete(fs513_list, pkt.FS513Name)
 			broadcastFileList()
 		case "rmfile":   // Received by node where file is located
-			removeFileFromFS(pkt.fs513FileName)
+			removeFileFromFS(pkt.FS513Name)
+		case "replicateFile":
+			// Get Path for file and do SCP
+			scpFile(COM_FS513_PATH + pkt.FS513Name, pkt.Host)
 		}
-	}
 }
-
 /*
  * Listen to membership list updates send from Gateway node.
  */
@@ -360,7 +367,7 @@ func checkAck(relativeIx int) {
 	if len(membershipGroup) >= MIN_GROUP_SIZE && getRelativeIx(host) == relativeIx && resetTimerFlags[relativeIx-1] != 1 {
 		msg := message{membershipGroup[(getIx()+relativeIx)%len(membershipGroup)].Host, "Failed", time.Now().Format(time.RFC850), ""}
 		infolog.Println("Failure detected at host: " + msg.Host)
-		spreadGroup(msg)
+		forwardMsg(msg)
 	}
 	// None of of the Events should be updating the MembershipList , only then this condition would be set.
 	// Reset all the other timers (which the current node is monitoring) as well if the above condition is met
@@ -518,7 +525,7 @@ func exitGroup() {
  * This function is to update the membershiplist by removing the left/failed host and then propogate
  * the message to next three successive neighbours.If the the membershiplist is already updated then stop the propagation.
  */
-func spreadGroup(msg message) {
+func forwardMsg(msg message) int {
 	var hostIx = -1
 	for i, element := range membershipGroup {
 		if msg.Host == element.Host {
@@ -527,7 +534,7 @@ func spreadGroup(msg message) {
 		}
 	}
 	if hostIx == -1 {
-		return
+		return 1
 	}
 
 	updateMG(hostIx, msg)
@@ -538,6 +545,8 @@ func spreadGroup(msg message) {
 	targetConnections[2] = membershipGroup[(getIx()+3)%len(membershipGroup)].Host
 
 	sendToHosts(msg, targetConnections)
+	
+	return 0
 }
 
 /*
@@ -592,45 +601,6 @@ func broadcastGroup(node member) {
 				errlog.Println(err)
 			}
 
-		}
-	}
-}
-
-func broadcastFileList() {
-
-	var listbuf bytes.Buffer
-
-	if err := gob.NewEncoder(&listbuf).Encode(fs513_list); err != nil {
-		fmt.Println("broadcastFileList: not able to encode")
-		errlog.Println(err)
-	}
-
-	for _, element := range membershipGroup {
-		if element.Host != currHost {
-
-			serverAddr, err := net.ResolveUDPAddr(UDP, element.Host+FL_GT_PORT)
-			if err != nil {
-				fmt.Println("broadcastFileList: not able to Resolve server address")
-				errlog.Println(err)
-			}
-
-			localAddr, err := net.ResolveUDPAddr(UDP, currHost+LCL_PORT)
-			if err != nil {
-				fmt.Println("broadcastFileList: not able to Resolve local address")
-				errlog.Println(err)
-			}
-
-			conn, err := net.DialUDP(UDP, localAddr, serverAddr)
-			if err != nil {
-				fmt.Println("broadcastFileList: not able to dial")
-				errlog.Println(err)
-			}
-
-			_, err = conn.Write(listbuf.Bytes())
-			if err != nil {
-				fmt.Println("broadcastFileList: not able to write to connection")
-				errlog.Println(err)
-			}
 		}
 	}
 }

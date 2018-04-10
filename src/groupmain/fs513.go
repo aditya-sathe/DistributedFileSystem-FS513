@@ -25,11 +25,10 @@ var local_files = make([]string, 0)
 func init() {
 	// remove old fs513 files 
 	execCommand("rm", "-rf", COM_FS513_PATH + "*")
+	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
 }
 
 func addFileToFS(local_path string, fs513_name string) {
-
-	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
 	
 	if _, ok := fs513_list[fs513_name]; ok {
 		fmt.Println("File " + fs513_name + " exists in FS513 system")
@@ -106,6 +105,36 @@ func removeFileFromFS(fs513_name string){
 	infolog.Println("file " + fs513_name + " removed from " + currHost)
 
 }
+
+func updateFileList(hostip string){
+	for filename, ips := range fs513_list {
+		newFileIps := make([]string,0)
+		for idx, ip := range ips{
+			if ip==hostip {
+				newFileIps = append(ips[:idx],ips[idx+1:]...)
+			}
+		}
+		// Determine new ip 
+		lastIp := newFileIps[len(newFileIps)-1]
+		targetIp := membershipGroup[(getIdxOfHost(lastIp)+1)%len(membershipGroup)].Host
+		
+		// Check if target IP already exist dont do anything
+		for _,v := range newFileIps {
+			if v == targetIp {
+				continue
+			}
+		}
+		// Send msgs to create replicas
+		msg := message{targetIp,"replicateFile", time.Now().Format(time.RFC850), filename}
+		sendToHosts(msg, newFileIps)
+		// Add to new File IPs
+		newFileIps = append(newFileIps,targetIp)
+		// update f3513 list
+		fs513_list[filename] = newFileIps
+	}
+	broadcastFileList()
+}
+
 
 func sendUpdGateway(fs513_name string, status string) {
 	fmt.Println("sendUpdGateway: " + fs513_name)
@@ -191,6 +220,45 @@ func listenToGatewayFL() {
 		mutex.Unlock()
 
 		infolog.Println("File List Received: ", fs513_list)
+	}
+}
+
+func broadcastFileList() {
+
+	var listbuf bytes.Buffer
+
+	if err := gob.NewEncoder(&listbuf).Encode(fs513_list); err != nil {
+		fmt.Println("broadcastFileList: not able to encode")
+		errlog.Println(err)
+	}
+
+	for _, element := range membershipGroup {
+		if element.Host != currHost {
+
+			serverAddr, err := net.ResolveUDPAddr(UDP, element.Host+FL_GT_PORT)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to Resolve server address")
+				errlog.Println(err)
+			}
+
+			localAddr, err := net.ResolveUDPAddr(UDP, currHost+LCL_PORT)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to Resolve local address")
+				errlog.Println(err)
+			}
+
+			conn, err := net.DialUDP(UDP, localAddr, serverAddr)
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to dial")
+				errlog.Println(err)
+			}
+
+			_, err = conn.Write(listbuf.Bytes())
+			if err != nil {
+				fmt.Println("broadcastFileList: not able to write to connection")
+				errlog.Println(err)
+			}
+		}
 	}
 }
 

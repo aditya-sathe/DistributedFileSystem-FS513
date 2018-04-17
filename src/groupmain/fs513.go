@@ -24,9 +24,9 @@ var local_files = make([]string, 0)
 
 func init() {
 	// remove old fs513 files
-	fmt.Println("fs513.go init()")
-	execCommand("rm", "-rf", COM_FS513_PATH + "*")
 	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
+	fmt.Println("fs513.go init()")
+	execCommand("rm", "-rf", COM_FS513_PATH + "test1")
 }
 
 func addFileToFS(local_path string, fs513_name string) {

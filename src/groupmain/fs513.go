@@ -30,7 +30,7 @@ func init() {
 	files, _ := filepath.Glob(COM_FS513_PATH + "*")
 	fmt.Println("Files " , files)
 	for _, file := range files { 
-		execCommand("rm", "-f", COM_FS513_PATH + file)
+		execCommand("rm", "-f", file)
 	}
 }
 

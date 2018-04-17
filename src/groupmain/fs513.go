@@ -23,7 +23,8 @@ var fs513_list = make(map[string][]string)
 var local_files = make([]string, 0)
 
 func init() {
-	// remove old fs513 files 
+	// remove old fs513 files
+	fmt.Println("fs513.go init()")
 	execCommand("rm", "-rf", COM_FS513_PATH + "*")
 	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
 }
@@ -262,7 +263,8 @@ func broadcastFileList() {
 	}
 }
 
-func execCommand(cmd string, cmdArgs ...string) int{	
+func execCommand(cmd string, cmdArgs ...string) int{
+	fmt.Println("Exec cmd" , cmdArgs)	
 	cmdOut, err := exec.Command(cmd, cmdArgs...).CombinedOutput()
 	if err != nil {
 		fmt.Println("Error while executing command: "+ cmd, err)

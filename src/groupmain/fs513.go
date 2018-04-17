@@ -26,13 +26,6 @@ func init() {
 	// remove old fs513 files
 	execCommand("rm", "-rf", COM_FS513_PATH)
 	os.MkdirAll(COM_FS513_PATH, os.ModePerm)
-	
-	/*
-	files, _ := filepath.Glob(COM_FS513_PATH + "*")
-	fmt.Println("Files " , files)
-	for _, file := range files { 
-		execCommand("rm", "-f", file)
-	}*/
 }
 
 func addFileToFS(local_path string, fs513_name string) {
@@ -81,12 +74,17 @@ func deleteFileFromFS(fs513_name string){
 		sendUpdGateway(fs513_name, "DelFile")
 	} else {
 		removeFileFromFS(fs513_name)
+		msg := message{currHost, "rmfile", time.Now().Format(time.RFC850), fs513_name}
+		var targetHosts = make([]string, 1)
+		targetHosts := fs513_list[fs513_name]
+
+		sendToHosts(msg, targetHosts[1:])
 	}
 }
 
 func removeFileFromFS(fs513_name string){
 	// Check if present locally
-	var present bool = false
+	/* var present bool = false
 	for _,v := range local_files{
 		if v == fs513_name {
 			present = true
@@ -95,7 +93,7 @@ func removeFileFromFS(fs513_name string){
 	if !present {
 		fmt.Println("File " + fs513_name + " does not exists in locally in " + currHost)
 		return
-	}
+	} */
 	
 	// Remove file from directory
 	fmt.Println("Removing file: ", COM_FS513_PATH + fs513_name)
@@ -103,12 +101,13 @@ func removeFileFromFS(fs513_name string){
 		return
 	}
 	// Remove file local array	
+	/*
 	for index, element := range local_files {
 		if element == fs513_name {
 			local_files = append(local_files[:index], local_files[index+1:]...)
 			break
 		}
-	}
+	}*/
 	infolog.Println("file " + fs513_name + " removed from " + currHost)
 
 }

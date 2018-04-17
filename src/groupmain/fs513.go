@@ -266,6 +266,7 @@ func broadcastFileList() {
 func execCommand(cmd string, cmdArgs ...string) int{
 	fmt.Println("Exec cmd" , cmdArgs)	
 	cmdOut, err := exec.Command(cmd, cmdArgs...).CombinedOutput()
+	fmt.Println(string(cmdOut))
 	if err != nil {
 		fmt.Println("Error while executing command: "+ cmd, err)
 		fmt.Println("Error is ", err)

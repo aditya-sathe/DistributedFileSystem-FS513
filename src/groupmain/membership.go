@@ -169,19 +169,27 @@ func takeUserInput() {
 			fs513_name = strings.TrimRight(fs513_name, "\n")
 			addFileToFS(local_path, fs513_name)
 		case "7":
+			fmt.Println("FS513 name?")
+			fs513_name, _ := reader.ReadString('\n')
+			fs513_name = strings.TrimRight(fs513_name, "\n")
+			getFileFromDest(fs513_name)
 		case "8":
 		    fmt.Println("FS513 name?")
 			fs513_name, _ := reader.ReadString('\n')
 			fs513_name = strings.TrimRight(fs513_name, "\n")
 			deleteFileFromFS(fs513_name)
 		case "9":
+			fmt.Println("FS513 name?")
+			fs513_name, _ := reader.ReadString('\n')
+			fs513_name = strings.TrimRight(fs513_name, "\n")
+			fmt.Println("Locate: " + fs513_name + " IPs: "  , fs513_list[fs513_name])
 		case "10":
 			//list all fs513 files
 			for k,v := range fs513_list {
 				fmt.Println("FS513 File:" + k + " IPs:", v)
 			} 
 		case "11":
-
+			getLocalFiles();
 		default:
 			fmt.Println("Invalid command")
 		}

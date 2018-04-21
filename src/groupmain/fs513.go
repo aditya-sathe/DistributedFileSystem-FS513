@@ -75,7 +75,6 @@ func deleteFileFromFS(fs513_name string){
 	} else {
 		removeFileFromFS(fs513_name)
 		msg := message{currHost, "rmfile", time.Now().Format(time.RFC850), fs513_name}
-		var targetHosts = make([]string, 1)
 		targetHosts := fs513_list[fs513_name]
 
 		sendToHosts(msg, targetHosts[1:])
@@ -108,8 +107,31 @@ func removeFileFromFS(fs513_name string){
 			break
 		}
 	}*/
-	infolog.Println("file " + fs513_name + " removed from " + currHost)
+	fmt.Println("File " + fs513_name + " removed from " + currHost)
+	infolog.Println("File " + fs513_name + " removed from " + currHost)
+}
 
+func getLocalFiles(){
+	localfiles := make([]string,0)
+	for filename, ips := range fs513_list {
+		for _, ip := range ips{
+			if ip == currHost {
+				localfiles = append(localfiles,filename)
+			}
+		}
+	}
+	fmt.Println("Local files on " + currHost + " are " , localfiles)
+}
+
+func getFileFromDest(fs513_name string){
+		msg := message{currHost, "replicateFile", time.Now().Format(time.RFC850), fs513_name}
+		targetHosts := fs513_list[fs513_name]
+		
+		if len(targetHosts) == 0 {
+			fmt.Println("File " + fs513_name + " does not exist in FS513 system")
+		}
+		
+		sendToHosts(msg, targetHosts)	
 }
 
 func updateFileList(hostip string){
@@ -140,7 +162,6 @@ func updateFileList(hostip string){
 	}
 	broadcastFileList()
 }
-
 
 func sendUpdGateway(fs513_name string, status string) {
 	fmt.Println("sendUpdGateway: " + fs513_name)

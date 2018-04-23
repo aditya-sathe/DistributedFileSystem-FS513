@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	GATEWAY        = "172.31.26.66" //Designated Gateway for the nodes to join
+	GATEWAY        = "172.31.23.202" //Designated Gateway for the nodes to join
 	MIN_GROUP_SIZE = 4
 	ACK_TIMEOUT    = time.Millisecond * 2500
 	SYN_TIMEOUT    = time.Second * 1
@@ -167,16 +167,19 @@ func takeUserInput() {
 			fmt.Println("FS513 name?")
 			fs513_name, _ := reader.ReadString('\n')
 			fs513_name = strings.TrimRight(fs513_name, "\n")
+			fmt.Println("Add file Start..", time.Now().Format(time.StampMicro))
 			addFileToFS(local_path, fs513_name)
 		case "7":
 			fmt.Println("FS513 name?")
 			fs513_name, _ := reader.ReadString('\n')
 			fs513_name = strings.TrimRight(fs513_name, "\n")
+			fmt.Println("GetFile Start..", time.Now().Format(time.StampMicro))
 			getFileFromDest(fs513_name)
 		case "8":
 		    fmt.Println("FS513 name?")
 			fs513_name, _ := reader.ReadString('\n')
 			fs513_name = strings.TrimRight(fs513_name, "\n")
+			fmt.Println("Remove File..", time.Now().Format(time.StampMicro))
 			deleteFileFromFS(fs513_name)
 		case "9":
 			fmt.Println("FS513 name?")
@@ -294,6 +297,7 @@ func processMsg(pkt message){
 			fs513_list[pkt.FS513Name] = file_ips
 			// Broadcast update to all nodes
 			broadcastFileList()
+			fmt.Println("Add file " + pkt.FS513Name + " End..", time.Now().Format(time.StampMicro))
 		case "DelFile":   // Received only by Gateway
 			// Get IPs for the fs513 file name
 			ips := fs513_list[pkt.FS513Name]		
@@ -305,9 +309,11 @@ func processMsg(pkt message){
 			broadcastFileList()
 		case "rmfile":   // Received by node where file is located
 			removeFileFromFS(pkt.FS513Name)
+			fmt.Println("File " + pkt.FS513Name + " Removed..", time.Now().Format(time.StampMicro))
 		case "replicateFile":
 			// Get Path for file and do SCP
 			scpFile(COM_FS513_PATH + pkt.FS513Name, pkt.Host)
+			fmt.Println("ReplicateFile " + pkt.FS513Name +" End..", time.Now().Format(time.StampMicro))
 		}
 }
 /*

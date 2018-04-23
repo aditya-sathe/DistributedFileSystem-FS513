@@ -135,6 +135,7 @@ func getFileFromDest(fs513_name string){
 }
 
 func updateFileList(hostip string){
+	fmt.Println("Inside UpdateFileList" + hostip)
 	for filename, ips := range fs513_list {
 		newFileIps := make([]string,0)
 		for idx, ip := range ips{

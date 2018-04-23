@@ -413,7 +413,7 @@ func initMG() {
  * The function which removes the node from the Membershiplist and updates the list.
  * Go library gives the flexiblity of moving the elements in the static array very elegantly by append and Array slice operators
  */
-func updateMG(Ix int, msg message) int {
+func updateMG(Ix int, msg message) {
 	localTime, _ := time.Parse(time.RFC850, membershipGroup[Ix].TimeStamp)
 	givenTime, _ := time.Parse(time.RFC850, msg.TimeStamp)
 
@@ -422,11 +422,9 @@ func updateMG(Ix int, msg message) int {
 		ts := time.Now().Format(time.StampMicro)
 		fmt.Println("Processed ["+msg.Status+"] Msg from "+msg.Host+" TS - ", ts)
 		infolog.Println("Processed ["+msg.Status+"] Msg from "+msg.Host+" TS - ", ts)
-		return 1
 	} else {
 		fmt.Println("Timestamp of msg [" + msg.TimeStamp + "] older than my record [" + membershipGroup[Ix].TimeStamp + "]")
 		infolog.Println("Timestamp of msg [" + msg.TimeStamp + "] older than my record [" + membershipGroup[Ix].TimeStamp + "]")
-		return 0
 	}
 }
 
